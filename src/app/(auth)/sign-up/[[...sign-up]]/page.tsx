@@ -8,11 +8,14 @@ import { useAuth } from "@/context/authContext";
 import { Button } from "@/components/ui/button";
 import { Loader2, Eye, EyeOff, Zap, Check, Sparkles } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
+import {useGoogleLogin} from "@react-oauth/google";
+import axios from "axios";
+import {toast} from "sonner";
 
 export default function SignUpForm() {
     const register = useAction(api.auth.registerUser);
     const router = useRouter();
-    const { login: setLogin } = useAuth();
+    const { login: setLogin, setUser } = useAuth();
 
     const [form, setForm] = useState({
         name: "",
@@ -57,37 +60,28 @@ export default function SignUpForm() {
 
     const strengthScore = Object.values(passwordStrength).filter(Boolean).length;
     const [googleLoading, setGoogleLoading] = useState(false);
-    const handleGoogleAuth = async () => {
-        try {
-            setGoogleLoading(true);
+    const googleLogin = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            try {
+                setGoogleLoading(true)
+                const { data } = await axios.post("/api/google", {
+                    access_token: tokenResponse.access_token,
+                });
+                console.log(data)
 
-            // Запускаем Google OAuth flow
-            const authWindow = window.open(
-                '/api/google', // Или ваш OAuth endpoint
-                'Google Auth',
-                'width=500,height=600'
-            );
+                localStorage.setItem("token", data.token);
+                toast.success("Добро пожаловать, " + data.user.name);
+                setUser(data.user);
+                setGoogleLoading(false)
+                router.replace("/workspace");
 
-            // Слушаем сообщения от popup окна
-            const handleMessage = (event: MessageEvent) => {
-                if (event.origin !== window.location.origin) return;
-
-                if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-                    const { token, user } = event.data;
-                    login(token);
-                    router.push('/');
-                    authWindow?.close();
-                    window.removeEventListener('message', handleMessage);
-                }
-            };
-
-            window.addEventListener('message', handleMessage);
-
-        } catch (error) {
-            console.error('Google auth error:', error);
-            setGoogleLoading(false);
-        }
-    };
+            } catch (err: any) {
+                console.error(err);
+                toast.error("Ошибка входа через Google");
+            }
+        },
+        onError: () => toast.error("Не удалось войти через Google"),
+    });
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-white to-purple-50">
@@ -323,8 +317,8 @@ export default function SignUpForm() {
                                 variant="outline"
                                 type="button"
                                 disabled={googleLoading}
-                                onClick={handleGoogleAuth}
-                                className="w-full border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-lg transition-all duration-200"
+                                onClick={() => googleLogin()}
+                                className="w-full hover:scale-105 transition border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-lg transition-all duration-200"
                             >
                                 {googleLoading ? (
                                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />

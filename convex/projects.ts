@@ -9,14 +9,40 @@ export const createProject = mutation({
         slideCount: v.string(),
     },
     handler: async (ctx, args) => {
-        await ctx.db.insert('projects', {
-            projectId: args.projectId,
+        const topic = args.userInputPrompt || "presentation";
+
+        // 🖼 Получаем случайное изображение с Unsplash
+        const unsplashRes = await fetch(
+            `https://api.unsplash.com/photos/random?query=${encodeURIComponent(
+                topic
+            )}&orientation=landscape&client_id=${UNSPLASH_ACCESS_KEY}`
+        );
+
+        const unsplashData = await unsplashRes.json();
+        const imageUrl = unsplashData?.urls?.regular || null;
+
+        // 🧩 Формируем объект проекта
+        const project = {
+            userId: args.userId,
+            projectId: crypto.randomUUID(),
             userInputPrompt: args.userInputPrompt,
-            createdBy: args.createdBy,
-            createdAt: args.createdAt,
             slideCount: args.slideCount,
-        })
-        return { success: true, projectId: args.projectId };
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            outline: [],
+            sliders: [],
+            designStyle: {
+                bannerImage:
+                    imageUrl ||
+                    "https://images.unsplash.com/photo-1514790193030-c89d266d5a9d?q=80&w=1200&auto=format&fit=crop",
+                styleName: "AI Generated",
+                icon: "✨",
+                colors: { primary: "#3b82f6" },
+            },
+        };
+
+        const projectId = await ctx.db.insert("projects", project);
+        return {success:true, projectId:projectId};
     }
 })
 export const getProjectDetails = query({

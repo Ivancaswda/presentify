@@ -87,9 +87,9 @@ export default function SignInPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-purple-50">
-            <div className="container relative min-h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-                {/* Левая часть - Брендинг */}
-                <div className="relative hidden h-full flex-col bg-gradient-to-br from-primary to-purple-600 p-10 text-white lg:flex">
+            <div className="container relative min-h-screen flex-col items-start justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+
+                <div className="relative hidden h-[94vh] flex-col bg-gradient-to-br from-primary to-purple-600 p-10 text-white lg:flex">
                     <motion.div
                         initial={{ opacity: 0, x: -50 }}
                         animate={{ opacity: 1, x: 0 }}

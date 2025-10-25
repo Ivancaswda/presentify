@@ -1,12 +1,14 @@
 'use client'
 import React, {useEffect, useRef, useState} from 'react'
 import {useParams} from "next/navigation";
-import {GoogleGenerativeAI} from "@google/generative-ai";
 import {useMutation} from "convex/react";
 import {api} from "../../../../../../../convex/_generated/api";
-import FloatingActionTool from "@/app/workspace/project/[projectId]/editor/_components/FloatingActionTool";
+import {Button} from "@/components/ui/button";
+import {ArrowRight, Loader2Icon, Sparkles} from "lucide-react";
+import {Input} from "@/components/ui/input";
 
 const HTML_DEFAULT = `<!DOCTYPE html>
+
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
@@ -26,51 +28,47 @@ const HTML_DEFAULT = `<!DOCTYPE html>
     overflow: hidden;
   }
 
-  .slide-wrapper {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background: #111827;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+.slide-wrapper {
+position: relative;
+width: 100%;
+height: 100%;
+background: #111827;
+overflow: hidden;
+display: flex;
+justify-content: center;
+align-items: center;
+}
 
-  .slide-content {
-    width: 100%;
-    height: 100%;
-    padding: 2rem;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    color: white;
-  }
+.slide-content {
+width: 100%;
+height: 100%;
+padding: 2rem;
+box-sizing: border-box;
+display: flex;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+text-align: center;
+color: white;
+}
 
-  .slide-content * {
-    max-width: 100%;
-    overflow-wrap: break-word;
-  }
+.slide-content * {
+max-width: 100%;
+overflow-wrap: break-word;
+cursor: text;
+}
 
-  .slide-text {
-    font-size: clamp(14px, 2vw, 36px);
-    line-height: 1.3;
-  }
+h1, h2, h3 {
+font-size: clamp(20px, 3vw, 40px);
+font-weight: 700;
+margin: 0.5em 0;
+}
 
-  h1, h2, h3 {
-    font-size: clamp(20px, 3vw, 40px);
-    font-weight: 700;
-    margin: 0.5em 0;
-  }
+p, li, span {
+font-size: clamp(14px, 1.5vw, 20px);
+margin: 0.3em 0;
+} </style>
 
-  p, li, span {
-    font-size: clamp(14px, 1.5vw, 20px);
-    margin: 0.3em 0;
-  }
-</style>
 </head>
 <body>
   <div class="slide-wrapper">
@@ -86,7 +84,6 @@ function fitSlide() {
   if (!wrapper || !content) return;
 
   content.style.transform = 'none';
-
   const scaleX = wrapper.clientWidth / content.scrollWidth;
   const scaleY = wrapper.clientHeight / content.scrollHeight;
   const scale = Math.min(scaleX, scaleY, 1);
@@ -96,33 +93,23 @@ function fitSlide() {
   content.style.left = '50%';
   content.style.position = 'absolute';
 }
-
 window.addEventListener('load', fitSlide);
 window.addEventListener('resize', fitSlide);
 </script>
+
 </body>
 </html>`;
 
-
-
-
-const SliderFrame = ({slide, colors, setUpdatedSlider}:any) => {
+const SliderFrame = ({slide, colors, setUpdatedSlider}: any) => {
     const { projectId } = useParams();
-    const [loading, setLoading] = useState<boolean>(false)
-    const [updateFilter, setUpdateFilter] = useState()
-    const updateSliderMutation = useMutation(api.projects.updateSlider);
-   const final_code = HTML_DEFAULT
-        .replace("colorCodes", JSON.stringify(colors || { primary: "#3b82f6" }))
-        .replace("{code}", slide?.html || "<div class='p-10 text-center text-gray-400'>Пустой слайд</div>");
-
-
-    const [selectedElement, setSelectedElement] = useState<HTMLElement | null>(null);
-    const [hoverElement, setHoverElement] = useState<HTMLElement | null>(null);
-    const [resModification, setResModification] = useState<{x: number, y: number} | null>(null);
-    const selectedElementRef = useRef<HTMLElement | null>(null)
+    const [loading, setLoading] = useState(false);
+    const [userAiPrompt, setUserAiPrompt] = useState('');
     const iframeRef = useRef<HTMLIFrameElement>(null);
-    const [cardPosition, setCardPosition] = useState<{x: number, y:number}|null>(null)
+    const selectedElementRef = useRef<HTMLElement | null>(null);
+    const updateSliderMutation = useMutation(api.projects.updateSlider);
 
+    const final_code = HTML_DEFAULT
+        .replace("{code}", slide?.html || "<div class='p-10 text-center text-gray-400'>Пустой слайд</div>");
 
     useEffect(() => {
         const iframe = iframeRef.current;
@@ -130,6 +117,7 @@ const SliderFrame = ({slide, colors, setUpdatedSlider}:any) => {
         const doc = iframe.contentDocument;
         if (!doc) return;
 
+        // Вставляем HTML
         doc.open();
         doc.write(final_code);
         doc.close();
@@ -137,132 +125,176 @@ const SliderFrame = ({slide, colors, setUpdatedSlider}:any) => {
         const init = () => {
             if (!doc.body) return;
 
-            doc.body.setAttribute("tabIndex", "0");
+            // Функция для добавления обработки картинок
+            const setupImages = () => {
+                const images = doc.querySelectorAll("img");
+                images.forEach((img) => {
+                    // Эффект наведения
+                    img.style.transition = "outline 0.2s";
+                    img.addEventListener("mouseenter", () => {
+                        img.style.outline = "2px dashed #3b82f6";
+                    });
+                    img.addEventListener("mouseleave", () => {
+                        img.style.outline = "";
+                    });
 
+                    // Клик для замены картинки
+                    img.addEventListener("click", (e) => {
+                        e.stopPropagation(); // чтобы не срабатывали другие клики
+                        const fileInput = document.createElement("input");
+                        fileInput.type = "file";
+                        fileInput.accept = "image/*";
+                        fileInput.onchange = async (ev) => {
+                            const file = (ev.target as HTMLInputElement).files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = async () => {
+                                img.src = reader.result as string;
+
+                                const newHTML = iframe.contentDocument?.body?.innerHTML || "";
+                                setUpdatedSlider && setUpdatedSlider(newHTML);
+
+                                await updateSliderMutation({
+                                    projectId,
+                                    slideIndex: slide.index,
+                                    html: newHTML,
+                                });
+                            };
+                            reader.readAsDataURL(file);
+                        };
+                        fileInput.click();
+                    });
+                });
+            };
+
+            // Редактирование текста
             const handleClick = (event: MouseEvent) => {
-                event.stopPropagation();
                 const target = event.target as HTMLElement;
+                if (!target) return;
 
-                // снимаем outline с предыдущего
-                if (selectedElement && selectedElement !== target) {
-                    selectedElement.style.outline = "";
-                    selectedElement.removeAttribute("contenteditable");
-                    selectedElement.removeEventListener("input", handleInput);
+                if (target.tagName === "IMG") return; // картинки обрабатываем отдельно
+
+                // снимаем выделение с предыдущего
+                if (selectedElementRef.current && selectedElementRef.current !== target) {
+                    selectedElementRef.current.style.outline = "";
+                    selectedElementRef.current.removeAttribute("contenteditable");
                 }
 
-                // выделяем новый
+                // выделяем новый элемент
                 selectedElementRef.current = target;
-                setSelectedElement(target);
-                target.style.outline = "2px solid blue";
+                target.style.outline = "2px solid #3b82f6";
                 target.setAttribute("contenteditable", "true");
                 target.focus();
 
-                const rect = target.getBoundingClientRect();
-                const iframeRect = iframe.getBoundingClientRect();
-                setCardPosition({
-                    x: iframeRect.left + rect.left + rect.width / 2,
-                    y: iframeRect.top + rect.bottom,
-                });
+                const handleInput = async () => {
+                    const newHTML = iframe.contentDocument?.body?.innerHTML || "";
+                    setUpdatedSlider && setUpdatedSlider(newHTML);
+                    await updateSliderMutation({
+                        projectId,
+                        slideIndex: slide.index,
+                        html: newHTML,
+                    });
+                };
 
-                // слушаем изменение текста
-                target.addEventListener("input", handleInput);
+                target.addEventListener("input", handleInput, { once: true });
             };
-
-            const handleInput = async (e: Event) => {
-                if (!selectedElementRef.current) return;
-                const newHTML = selectedElementRef.current.outerHTML;
-
-                // обновляем локально
-                setUpdatedSlider && setUpdatedSlider(iframe.contentDocument?.body?.innerHTML || newHTML);
-
-                // сохраняем в Convex
-                await updateSliderMutation({
-                    projectId,
-                    slideIndex: slide.index,
-                    html: iframe.contentDocument?.body?.innerHTML || newHTML
-                });
-            };
-
-            doc.body.addEventListener("click", handleClick);
 
             const handleKeyDown = (event: KeyboardEvent) => {
-                if (event.key === "Escape" && selectedElement) {
-                    selectedElement.style.outline = "";
-                    selectedElement.removeAttribute("contenteditable");
-                    selectedElement.removeEventListener("input", handleInput);
-                    setSelectedElement(null);
+                if (event.key === "Escape" && selectedElementRef.current) {
+                    selectedElementRef.current.style.outline = "";
+                    selectedElementRef.current.removeAttribute("contenteditable");
+                    selectedElementRef.current = null;
                 }
             };
 
+            // Применяем обработку
+            setupImages();
+            doc.body.addEventListener("click", handleClick);
             doc.body.addEventListener("keydown", handleKeyDown);
+
+            return () => {
+                doc.body.removeEventListener("click", handleClick);
+                doc.body.removeEventListener("keydown", handleKeyDown);
+            };
         };
 
-        if (doc.readyState === "complete" && doc.body) {
-            init();
-        } else {
-            iframe.onload = init;
-        }
-    }, [slide.html, colors]);
+        if (doc.readyState === "complete") init();
+        else iframe.onload = init;
+
+    }, [slide.html]);
 
 
-
-
-
-
-    const handleAiSectionChange = async (userAiPrompt: string) => {
+// AI редактирование выделенного элемента
+    const handleAiChange = async () => {
+        if (!selectedElementRef.current || !userAiPrompt.trim()) return;
         setLoading(true);
-        const selectedEl = selectedElementRef.current;
-        const iframe = iframeRef.current;
-
-        if (!selectedEl || !iframe) {
-            setLoading(false);
-            return;
-        }
-
-        const oldHTML = selectedEl.outerHTML;
-
-        try {
-            const res = await fetch("/api/ai-section-change", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ oldHTML, userAiPrompt }),
-            });
-
-            const data = await res.json();
-
-            if (res.ok && data.html) {
-                selectedEl.outerHTML = data.html;
-
-                const updatedSliderCode = iframe.contentDocument?.body?.innerHTML || data.html;
-                setUpdatedSlider(updatedSliderCode);
 
 
-                await updateSliderMutation({
-                    projectId,
-                    slideIndex: slide.index,
-                    html: updatedSliderCode,
-                    aiPrompt: userAiPrompt
-                });
-            }
-        } catch (err) {
-            console.error("Ошибка при AI генерации секции:", err);
-        } finally {
-            setLoading(false);
-        }
-    };
+const selectedEl = selectedElementRef.current;
+const iframe = iframeRef.current;
+if (!iframe) return;
 
-    return (
-        <div className="m-4">
-            <iframe
-                ref={iframeRef}
-                className="w-full h-screen flex items-center justify-center border-2 border-gray-300 rounded-lg"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-            />
-            <FloatingActionTool loading={loading}  position={cardPosition}
-                                 onClose={() => setCardPosition(null)}
-                                 handleAiChange={(value:any) => handleAiSectionChange(value) }
-            />
-        </div>
-    );
+const oldHTML = selectedEl.outerHTML;
+
+try {
+  const res = await fetch("/api/ai-section-change", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ oldHTML, userAiPrompt }),
+  });
+
+  const data = await res.json();
+  if (res.ok && data.html) {
+    selectedEl.outerHTML = data.html;
+
+    const newHTML = iframe.contentDocument?.body?.innerHTML || data.html;
+    setUpdatedSlider && setUpdatedSlider(newHTML);
+
+    await updateSliderMutation({
+      projectId,
+      slideIndex: slide.index,
+      html: newHTML,
+      aiPrompt: userAiPrompt,
+    });
+  }
+} catch (err) {
+  console.error("Ошибка при AI редактировании:", err);
+} finally {
+  setUserAiPrompt('');
+  setLoading(false);
 }
-export default SliderFrame
+
+
+    };
+    console.log(userAiPrompt.trim() ? true : false)
+
+    return ( <div className="relative m-4 border border-gray-700 rounded-lg overflow-hidden shadow-xl">
+        {/* AI-инпут всегда закреплён */} <div className="absolute top-2 right-2 z-50 bg-white text-black px-3 py-2 rounded-lg shadow-md flex gap-2 items-center"> <Sparkles className="h-4 w-4" />
+        <Input
+            value={userAiPrompt}
+            onChange={(e) => setUserAiPrompt(e.target.value)}
+            disabled={loading}
+            placeholder="редактируйте с ИИ"
+            className="w-52"
+        />
+        <Button
+            onClick={handleAiChange}
+            disabled={loading || !userAiPrompt.trim()}
+            size="sm"
+            variant="ghost"
+        >
+            {loading ? <Loader2Icon className="animate-spin" /> : <ArrowRight />} </Button> </div>
+
+
+        <iframe
+            ref={iframeRef}
+            className="w-full h-[140vh] flex items-center justify-center bg-black"
+            sandbox="allow-scripts allow-same-origin allow-forms"
+        />
+    </div>
+
+
+);
+};
+
+export default SliderFrame;

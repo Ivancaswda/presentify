@@ -25,7 +25,7 @@ const MyProjects = () => {
     if (!user) return
     const myProjects = useQuery(api.projects.getProjectsByUser, {userId: user?.userId})
     if (!myProjects) return
-
+    console.log(myProjects)
 
 
     return (

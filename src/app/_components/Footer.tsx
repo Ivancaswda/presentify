@@ -80,7 +80,7 @@ const Footer = () => {
                     </ul>
                 </div>
 
-                {/* Правая колонка */}
+
                 <div>
                     <h3 className="text-lg font-semibold mb-4">Подпишитесь на новости</h3>
                     <p className="text-white/80 text-sm mb-4">
